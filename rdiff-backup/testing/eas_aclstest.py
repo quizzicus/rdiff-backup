@@ -1,13 +1,9 @@
-import unittest, os, time, cStringIO, posix1e, pwd, grp
+import unittest, os, time
 from commontest import *
 from rdiff_backup.eas_acls import *
-from rdiff_backup import Globals, rpath, Time, user_group
+from rdiff_backup import Globals, rpath, Time
 
-user_group.init_user_mapping()
-user_group.init_group_mapping()
 tempdir = rpath.RPath(Globals.local_connection, "testfiles/output")
-restore_dir = rpath.RPath(Globals.local_connection,
-						  "testfiles/restore_out")
 
 class EATest(unittest.TestCase):
 	"""Test extended attributes"""
@@ -31,7 +27,6 @@ class EATest(unittest.TestCase):
 		"""Make temp directory testfiles/output"""
 		if tempdir.lstat(): tempdir.delete()
 		tempdir.mkdir()
-		if restore_dir.lstat(): restore_dir.delete()
 
 	def testBasic(self):
 		"""Test basic writing and reading of extended attributes"""
@@ -65,41 +60,6 @@ class EATest(unittest.TestCase):
 			assert self.sample_ea.index == new_ea.index, \
 				   (self.sample_ea.index, new_ea.index)
 			assert 0, "We shouldn't have gotten this far"
-
-	def testExtractor(self):
-		"""Test seeking inside a record list"""
-		record_list = """# file: 0foo
-user.multiline=0sVGhpcyBpcyBhIGZhaXJseSBsb25nIGV4dGVuZGVkIGF0dHJpYnV0ZS4KCQkJIEVuY29kaW5nIGl0IHdpbGwgcmVxdWlyZSBzZXZlcmFsIGxpbmVzIG9mCgkJCSBiYXNlNjQusbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGx
-user.third=0saGVsbG8=
-user.not_empty=0sZm9vYmFy
-user.binary=0sAAECjC89Ig==
-user.empty
-# file: 1foo/bar/baz
-user.multiline=0sVGhpcyBpcyBhIGZhaXJseSBsb25nIGV4dGVuZGVkIGF0dHJpYnV0ZS4KCQkJIEVuY29kaW5nIGl0IHdpbGwgcmVxdWlyZSBzZXZlcmFsIGxpbmVzIG9mCgkJCSBiYXNlNjQusbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGx
-user.third=0saGVsbG8=
-user.binary=0sAAECjC89Ig==
-user.empty
-# file: 2foo/\\012
-user.empty
-"""
-		extractor = EAExtractor(cStringIO.StringIO(record_list))
-		ea_iter = extractor.iterate_starting_with(())
-		first = ea_iter.next()
-		assert first.index == ('0foo',), first
-		second = ea_iter.next()
-		assert second.index == ('1foo', 'bar', 'baz'), second
-		third = ea_iter.next() # Test quoted filenames
-		assert third.index == ('2foo', '\n'), third.index
-		try: ea_iter.next()
-		except StopIteration: pass
-		else: assert 0, "Too many elements in iterator"
-
-		extractor = EAExtractor(cStringIO.StringIO(record_list))
-		ea_iter = extractor.iterate_starting_with(('1foo', 'bar'))
-		assert ea_iter.next().index == ('1foo', 'bar', 'baz')
-		try: ea_iter.next()
-		except StopIteration: pass
-		else: assert 0, "Too many elements in iterator"
 
 	def make_backup_dirs(self):
 		"""Create testfiles/ea_test[12] directories
@@ -177,89 +137,73 @@ user.empty
 				   'testfiles/empty', 'testfiles/ea_test1']
 		BackupRestoreSeries(None, None, dirlist, compare_eas = 1)
 
-	def test_final_local(self):
-		"""Test backing up and restoring using 'rdiff-backup' script"""
-		self.make_backup_dirs()
-		self.make_temp()
-		rdiff_backup(1, 1, self.ea_testdir1.path, tempdir.path,
-					 current_time = 10000)
-		assert CompareRecursive(self.ea_testdir1, tempdir, compare_eas = 1)
-
-		rdiff_backup(1, 1, self.ea_testdir2.path, tempdir.path,
-					 current_time = 20000)
-		assert CompareRecursive(self.ea_testdir2, tempdir, compare_eas = 1)
-
-		rdiff_backup(1, 1, tempdir.path, restore_dir.path,
-					 extra_options = '-r 10000')
-		assert CompareRecursive(self.ea_testdir1, restore_dir, compare_eas = 1)
 
 
 class ACLTest(unittest.TestCase):
 	"""Test access control lists"""
-	sample_acl = AccessControlLists((),"""user::rwx
+	sample_acl = AccessControlList((),"""user::rwx
 user:root:rwx
 group::r-x
 group:root:r-x
 mask::r-x
 other::---""")
-	dir_acl = AccessControlLists((), """user::rwx
+	dir_acl = AccessControlList((), """user::rwx
 user:root:rwx
 group::r-x
 group:root:r-x
 mask::r-x
-other::---
-default:user::rwx
-default:user:root:---
-default:group::r-x
-default:mask::r-x
-default:other::---""")
-	acl1 = AccessControlLists(('1',), """user::r--
+other::---""",
+								"""user::rwx
+user:root:---
+group::r-x
+mask::r-x
+other::---""")
+	acl1 = AccessControlList(('1',), """user::r--
 user:ben:---
 group::---
 group:root:---
 mask::---
 other::---""")
-	acl2 = AccessControlLists(('2',), """user::rwx
+	acl2 = AccessControlList(('2',), """user::rwx
 group::r-x
 group:ben:rwx
 mask::---
 other::---""")
-	acl3 = AccessControlLists(('3',), """user::rwx
+	acl3 = AccessControlList(('3',), """user::rwx
 user:root:---
 group::r-x
 mask::---
 other::---""")
-	empty_acl = AccessControlLists((), "user::rwx\ngroup::---\nother::---")
+	empty_acl = AccessControlList((), "user::rwx\ngroup::---\nother::---")
 	acl_testdir1 = rpath.RPath(Globals.local_connection, 'testfiles/acl_test1')
 	acl_testdir2 = rpath.RPath(Globals.local_connection, 'testfiles/acl_test2')
 	def make_temp(self):
 		"""Make temp directory testfile/output"""
 		if tempdir.lstat(): tempdir.delete()
 		tempdir.mkdir()
-		if restore_dir.lstat(): restore_dir.delete()
 
 	def testBasic(self):
 		"""Test basic writing and reading of ACLs"""
 		self.make_temp()
-		new_acl = AccessControlLists(())
+		new_acl = AccessControlList(())
 		tempdir.chmod(0700)
 		new_acl.read_from_rp(tempdir)
-		assert new_acl.is_basic(), str(new_acl)
+		assert new_acl.is_basic(), new_acl.acl_text
 		assert not new_acl == self.sample_acl
 		assert new_acl != self.sample_acl
 		assert new_acl == self.empty_acl, \
-			   (str(new_acl), str(self.empty_acl))
+			   (new_acl.acl_text, self.empty_acl.acl_text)
 
 		self.sample_acl.write_to_rp(tempdir)
 		new_acl.read_from_rp(tempdir)
-		assert str(new_acl) == str(self.sample_acl), \
-			   (str(new_acl), str(self.sample_acl))
+		assert new_acl.acl_text == self.sample_acl.acl_text, \
+			   (new_acl.acl_text, self.sample_acl.acl_text)
 		assert new_acl == self.sample_acl
 		
 	def testBasicDir(self):
 		"""Test reading and writing of ACL w/ defaults to directory"""
 		self.make_temp()
-		new_acl = AccessControlLists(())
+		new_acl = AccessControlList(())
 		new_acl.read_from_rp(tempdir)
 		assert new_acl.is_basic()
 		assert new_acl != self.dir_acl
@@ -275,61 +219,13 @@ other::---""")
 		"""Test writing a record and reading it back"""
 		record = ACL2Record(self.sample_acl)
 		new_acl = Record2ACL(record)
-		if new_acl != self.sample_acl:
-			print "New_acl", new_acl.entry_list
-			print "sample_acl", self.sample_acl.entry_list
-			print "New_acl text", str(new_acl)
-			print "sample acl text", str(self.sample_acl)
-			assert 0
+		assert new_acl == self.sample_acl
 
 		record2 = ACL2Record(self.dir_acl)
 		new_acl2 = Record2ACL(record2)
 		if not new_acl2 == self.dir_acl:
 			assert new_acl2.eq_verbose(self.dir_acl)
 			assert 0
-
-	def testExtractor(self):
-		"""Test seeking inside a record list"""
-		record_list = """# file: 0foo
-user::r--
-user:ben:---
-group::---
-group:root:---
-mask::---
-other::---
-# file: 1foo/bar/baz
-user::r--
-user:ben:---
-group::---
-group:root:---
-mask::---
-other::---
-# file: 2foo/\\012
-user::r--
-user:ben:---
-group::---
-group:root:---
-mask::---
-other::---
-"""
-		extractor = ACLExtractor(cStringIO.StringIO(record_list))
-		acl_iter = extractor.iterate_starting_with(())
-		first = acl_iter.next()
-		assert first.index == ('0foo',), first
-		second = acl_iter.next()
-		assert second.index == ('1foo', 'bar', 'baz'), second
-		third = acl_iter.next() # Test quoted filenames
-		assert third.index == ('2foo', '\n'), third.index
-		try: acl_iter.next()
-		except StopIteration: pass
-		else: assert 0, "Too many elements in iterator"
-
-		extractor = ACLExtractor(cStringIO.StringIO(record_list))
-		acl_iter = extractor.iterate_starting_with(('1foo', 'bar'))
-		assert acl_iter.next().index == ('1foo', 'bar', 'baz')
-		try: acl_iter.next()
-		except StopIteration: pass
-		else: assert 0, "Too many elements in iterator"
 
 	def make_backup_dirs(self):
 		"""Create testfiles/acl_test[12] directories"""
@@ -365,7 +261,7 @@ other::---
 		Time.setcurtime(10000)
 		AccessControlListFile.open_file()
 		for rp in [self.acl_testdir1, rp1, rp2, rp3]:
-			acl = AccessControlLists(rp.index)
+			acl = AccessControlList(rp.index)
 			acl.read_from_rp(rp)
 			AccessControlListFile.write_object(acl)
 		AccessControlListFile.close_file()
@@ -398,98 +294,6 @@ other::---
 		dirlist = ['testfiles/acl_test1', 'testfiles/acl_test2',
 				   'testfiles/empty', 'testfiles/acl_test1']
 		BackupRestoreSeries(None, None, dirlist, compare_acls = 1)
-
-	def test_final_local(self):
-		"""Test backing up and restoring using 'rdiff-backup' script"""
-		self.make_backup_dirs()
-		self.make_temp()
-		rdiff_backup(1, 1, self.acl_testdir1.path, tempdir.path,
-					 current_time = 10000)
-		assert CompareRecursive(self.acl_testdir1, tempdir, compare_acls = 1)
-
-		rdiff_backup(1, 1, self.acl_testdir2.path, tempdir.path,
-					 current_time = 20000)
-		assert CompareRecursive(self.acl_testdir2, tempdir, compare_acls = 1)
-
-		rdiff_backup(1, 1, tempdir.path, restore_dir.path,
-					 extra_options = '-r 10000')
-		assert CompareRecursive(self.acl_testdir1, restore_dir,
-								compare_acls = 1)
-
-		restore_dir.delete()
-		rdiff_backup(1, 1, tempdir.path, restore_dir.path,
-					 extra_options = '-r now')
-		assert CompareRecursive(self.acl_testdir2, restore_dir,
-								compare_acls = 1)
-
-	def test_acl_mapping(self):
-		"""Test mapping ACL names"""
-		def make_dir(rootrp):
-			if rootrp.lstat(): rootrp.delete()
-			rootrp.mkdir()
-			rp = rootrp.append('1')
-			rp.touch()
-			acl = AccessControlLists(('1',), """user::rwx
-user:root:rwx
-user:ben:---
-user:bin:r--
-group::r-x
-group:root:r-x
-group:ben:-w-
-mask::r-x
-other::---""")
-			rp.write_acl(acl)
-			return rp
-		
-		def write_mapping_file(rootrp):
-			map_rp = rootrp.append('mapping_file')
-			map_rp.write_string("root:ben\nben:bin\nbin:root")
-			return map_rp
-
-		def get_perms_of_user(acl, user):
-			"""Return the permissions of ACL_USER in acl, or None"""
-			for type, owner_pair, perms in acl.entry_list:
-				if type == posix1e.ACL_USER and owner_pair[1] == user:
-					return perms
-			return None
-
-		self.make_temp()
-		rootrp = rpath.RPath(Globals.local_connection,
-							 'testfiles/acl_map_test')
-		rp = make_dir(rootrp)
-		map_rp = write_mapping_file(rootrp)
-
-		rdiff_backup(1, 1, rootrp.path, tempdir.path,
-					 extra_options = "--user-mapping-file %s" % (map_rp.path,))
-
-		out_rp = tempdir.append('1')
-		assert out_rp.isreg()
-		out_acl = tempdir.append('1').get_acl()
-		assert get_perms_of_user(out_acl, 'root') == 4
-		assert get_perms_of_user(out_acl, 'ben') == 7
-		assert get_perms_of_user(out_acl, 'bin') == 0
-
-	def test_acl_dropping(self):
-		"""Test dropping of ACL names"""
-		self.make_temp()
-		rp = tempdir.append('1')
-		rp.touch()
-		acl = AccessControlLists(('1',), """user::rwx
-user:aoensutheu:r--
-group::r-x
-group:aeuai:r-x
-group:enutohnh:-w-
-other::---""")
-		rp.write_acl(acl)
-		rp2 = tempdir.append('1')
-		acl2 = AccessControlLists(('1',))
-		acl2.read_from_rp(rp2)
-		assert acl2.is_basic()
-		Globals.never_drop_acls = 1
-		try: rp.write_acl(acl)
-		except SystemExit: pass
-		else: assert 0, "Above should have exited with fatal error"
-		Globals.never_drop_acls = None
 
 
 class CombinedTest(unittest.TestCase):
