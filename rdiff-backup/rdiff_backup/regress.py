@@ -112,20 +112,34 @@ def remove_rbdir_increments():
 		old_current_mirror.delete()
 
 def iterate_raw_rfs(mirror_rp, inc_rp):
-	"""Iterate all RegressFile objects in mirror/inc directory"""
+	"""Iterate all RegressFile objects in mirror/inc directory
+
+	Also changes permissions of unreadable files to allow access and
+	then changes them back later.
+
+	"""
 	root_rf = RegressFile(mirror_rp, inc_rp, restore.get_inclist(inc_rp))
 	def helper(rf):
+		mirror_rp = rf.mirror_rp
+		if (Globals.process_uid != 0 and
+			((mirror_rp.isreg() and not mirror_rp.readable()) or
+			 (mirror_rp.isdir() and not mirror_rp.hasfullperms()))):
+			unreadable, old_perms = 1, mirror_rp.getperms()
+			if mirror_rp.isreg(): mirror_rp.chmod(0400 | old_perms)
+			else: mirror_rp.chmod(0700 | old_perms)
+		else: unreadable = 0
 		yield rf
+		if unreadable and mirror_rp.isreg(): mirror_rp.chmod(old_perms)
 		if rf.mirror_rp.isdir() or rf.inc_rp.isdir():
 			for sub_rf in rf.yield_sub_rfs():
 				for sub_sub_rf in helper(sub_rf):
 					yield sub_sub_rf
+		if unreadable and mirror_rp.isdir(): mirror_rp.chmod(old_perms)
 	return helper(root_rf)
 
 def yield_metadata():
 	"""Iterate rorps from metadata file, if any are available"""
-	metadata_iter = metadata.MetadataFile.get_objects_at_time(Globals.rbdir,
-															  regress_time)
+	metadata_iter = metadata.GetMetadata_at_time(Globals.rbdir, regress_time)
 	if metadata_iter: return metadata_iter
 	log.Log.FatalError("No metadata for time %s found, cannot regress"
 					   % Time.timetopretty(regress_time))
@@ -141,13 +155,15 @@ def iterate_meta_rfs(mirror_rp, inc_rp):
 	raw_rfs = iterate_raw_rfs(mirror_rp, inc_rp)
 	collated = rorpiter.Collate2Iters(raw_rfs, yield_metadata())
 	for raw_rf, metadata_rorp in collated:
-		if not raw_rf:
+		if raw_rf:
+			raw_rf.set_metadata_rorp(metadata_rorp)
+			yield raw_rf
+		else:
 			log.Log("Warning, metadata file has entry for %s,\n"
 					"but there are no associated files." %
 					(metadata_rorp.get_indexpath(),), 2)
-			continue
-		raw_rf.set_metadata_rorp(metadata_rorp)
-		yield raw_rf
+			yield RegressFile(mirror_rp.new_index(metadata_rorp.index),
+							  inc_rp.new_index(metadata_rorp.index), ())
 
 
 class RegressFile(restore.RestoreFile):

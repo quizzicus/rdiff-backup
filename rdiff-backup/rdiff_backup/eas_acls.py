@@ -30,13 +30,8 @@ from __future__ import generators
 import base64, errno, re
 try: import posix1e
 except ImportError: pass
-import static, Globals, metadata, connection, rorpiter, log, C, \
-	   rpath, user_group
+import static, Globals, metadata, connection, rorpiter, log
 
-# When an ACL gets dropped, put name in dropped_acl_names.  This is
-# only used so that only the first dropped ACL for any given name
-# triggers a warning.
-dropped_acl_names = {}
 
 class ExtendedAttributes:
 	"""Hold a file's extended attribute information"""
@@ -109,12 +104,12 @@ def ea_compare_rps(rp1, rp2):
 
 def EA2Record(ea):
 	"""Convert ExtendedAttributes object to text record"""
-	str_list = ['# file: %s' % C.acl_quote(ea.get_indexpath())]
+	str_list = ['# file: %s' % ea.get_indexpath()]
 	for (name, val) in ea.attr_dict.iteritems():
 		if not val: str_list.append(name)
 		else:
 			encoded_val = base64.encodestring(val).replace('\n', '')
-			str_list.append('%s=0s%s' % (C.acl_quote(name), encoded_val))
+			str_list.append('%s=0s%s' % (name, encoded_val))
 	return '\n'.join(str_list)+'\n'
 
 def Record2EA(record):
@@ -125,7 +120,7 @@ def Record2EA(record):
 		raise metadata.ParsingError("Bad record beginning: " + first[:8])
 	filename = first[8:]
 	if filename == '.': index = ()
-	else: index = tuple(C.acl_unquote(filename).split('/'))
+	else: index = tuple(filename.split('/'))
 	ea = ExtendedAttributes(index)
 
 	for line in lines:
@@ -142,15 +137,27 @@ def Record2EA(record):
 			ea.set(name, base64.decodestring(encoded_val))
 	return ea
 
+def quote_path(path):
+	"""Quote a path for use EA/ACL records.
+
+	Right now no quoting!!!  Change this to reflect the updated
+	quoting style of getfattr/setfattr when they are changed.
+
+	"""
+	return path
+
 
 class EAExtractor(metadata.FlatExtractor):
 	"""Iterate ExtendedAttributes objects from the EA information file"""
-	record_boundary_regexp = re.compile('(?:\\n|^)(# file: (.*?))\\n')
+	record_boundary_regexp = re.compile("\\n# file:")
 	record_to_object = staticmethod(Record2EA)
-	def filename_to_index(self, filename):
-		"""Convert possibly quoted filename to index tuple"""
-		if filename == '.': return ()
-		else: return tuple(C.acl_unquote(filename).split('/'))
+	def get_index_re(self, index):
+		"""Find start of EA record with given index"""
+		if not index: indexpath = '.'
+		else: indexpath = '/'.join(index)
+		# Right now there is no quoting, due to a bug in
+		# getfacl/setfacl.  Replace later when bug fixed.
+		return re.compile('(^|\\n)(# file: %s\\n)' % indexpath)
 
 class ExtendedAttributesFile(metadata.FlatFile):
 	"""Store/retrieve EAs from extended_attributes file"""
@@ -164,7 +171,7 @@ class ExtendedAttributesFile(metadata.FlatFile):
 			"""Add EA information in ea_iter to rorp_iter"""
 			collated = rorpiter.CollateIterators(rorp_iter, ea_iter)
 			for rorp, ea in collated:
-				assert rorp, (rorp, (ea.index, ea.attr_dict), time)
+				assert rorp, (rorp, (ea.index, ea.attr_dict), rest_time)
 				if not ea: ea = ExtendedAttributes(rorp.index)
 				rorp.set_ea(ea)
 				yield rorp
@@ -178,111 +185,32 @@ class ExtendedAttributesFile(metadata.FlatFile):
 static.MakeClass(ExtendedAttributesFile)
 
 
-class AccessControlLists:
+class AccessControlList:
 	"""Hold a file's access control list information
 
-	Since posix1e.ACL objects cannot be picked, and because they lack
-	user/group name information, store everything in self.entry_list
-	and self.default_entry_list.
+	Since ACL objects cannot be picked, store everything as text, in
+	self.acl_text and self.def_acl_text.
 
 	"""
-	def __init__(self, index, acl_text = None):
+	def __init__(self, index, acl_text = None, def_acl_text = None):
 		"""Initialize object with index and possibly acl_text"""
 		self.index = index
-		if acl_text: self.set_from_text(acl_text)
-		else: self.entry_list = self.default_entry_list = None
+		if acl_text: # Check validity of ACL, reorder if necessary
+			ACL = posix1e.ACL(text=acl_text)
+			assert ACL.valid(), "Bad ACL: "+acl_text
+			self.acl_text = str(ACL)
+		else: self.acl_text = None
 
-	def set_from_text(self, text):
-		"""Set self.entry_list and self.default_entry_list from text"""
-		self.entry_list, self.default_entry_list = [], []
-		for line in text.split('\n'):
-			comment_pos = text.find('#')
-			if comment_pos >= 0: line = line[:comment_pos]
-			line = line.strip()
-			if not line: continue
-
-			if line.startswith('default:'):
-				entrytuple = self.text_to_entrytuple(line[8:])
-				self.default_entry_list.append(entrytuple)
-			else: self.entry_list.append(self.text_to_entrytuple(line))
+		if def_acl_text:
+			def_ACL = posix1e.ACL(text=def_acl_text)
+			assert def_ACL.valid(), "Bad default ACL: "+def_acl_text
+			self.def_acl_text = str(def_ACL)
+		else: self.def_acl_text = None
 
 	def __str__(self):
-		"""Return text version of acls"""
-		slist = map(self.entrytuple_to_text, self.entry_list)
-		if self.default_entry_list:
-			slist.extend(map(lambda e: "default:" + self.entrytuple_to_text(e),
-							 self.default_entry_list))
-		return "\n".join(slist)
-
-	def entrytuple_to_text(self, entrytuple):
-		"""Return text version of entrytuple, as in getfacl"""
-		type, name_pair, perms = entrytuple
-		if type == posix1e.ACL_USER_OBJ:
-			text = 'user::'
-		elif type == posix1e.ACL_USER:
-			uid, uname = name_pair
-			text = 'user:%s:' % (uname or uid)
-		elif type == posix1e.ACL_GROUP_OBJ:
-			text = 'group::'
-		elif type == posix1e.ACL_GROUP:
-			gid, gname = name_pair
-			text = 'group:%s:' % (gname or gid)
-		elif type == posix1e.ACL_MASK:
-			text = 'mask::'
-		else:
-			assert type == posix1e.ACL_OTHER, type
-			text = 'other::'
-
-		permstring = '%s%s%s' % (perms & 4 and 'r' or '-',
-								 perms & 2 and 'w' or '-',
-								 perms & 1 and 'x' or '-')
-		return text+permstring
-
-	def text_to_entrytuple(self, text):
-		"""Return entrytuple given text like 'user:foo:r--'"""
-		typetext, qualifier, permtext = text.split(':')
-		if qualifier:
-			try: id = int(qualifier)
-			except ValueError: namepair = (None, qualifier)
-			else: namepair = (uid, None)
-
-			if typetext == 'user': type = posix1e.ACL_USER
-			else:
-				assert typetext == 'group', (typetext, text)
-				type = posix1e.ACL_GROUP
-		else:
-			namepair = None
-			if typetext == 'user': type = posix1e.ACL_USER_OBJ
-			elif typetext == 'group': type = posix1e.ACL_GROUP_OBJ
-			elif typetext == 'mask': type = posix1e.ACL_MASK
-			else:
-				assert typetext == 'other', (typetext, text)
-				type = posix1e.ACL_OTHER
-
-		assert len(permtext) == 3, (permtext, text)
-		read, write, execute = permtext
-		perms = ((read == 'r') << 2 |
-				 (write == 'w') << 1 |
-				 (execute == 'x'))
-		return (type, namepair, perms)
-
-	def cmp_entry_list(self, l1, l2):
-		"""True if the lists have same entries.  Assume preordered"""
-		if not l1: return l1 == l2
-		if not l2 or len(l1) != len(l2): return 0
-		for i in range(len(l1)):
-			type1, namepair1, perms1 = l1[i]
-			type2, namepair2, perms2 = l2[i]
-			if type1 != type2 or perms1 != perms2: return 0
-			if namepair1 == namepair2: continue
-			if not namepair1 or not namepair2: return 0
-			(id1, name1), (id2, name2) = namepair1, namepair2
-			if name1:
-				if name1 == name2: continue
-				else: return 0
-			if name2: return 0
-			if id1 != id2: return 0
-		return 1
+		"""Return human-readable string"""
+		return ("acl_text: %s\ndef_acl_text: %s" %
+				(self.acl_text, self.def_acl_text))
 
 	def __eq__(self, acl):
 		"""Compare self and other access control list
@@ -294,10 +222,10 @@ class AccessControlLists:
 		assert isinstance(acl, self.__class__)
 		if self.index != acl.index: return 0
 		if self.is_basic(): return acl.is_basic()
-		return (self.cmp_entry_list(self.entry_list, acl.entry_list) and
-				self.cmp_entry_list(self.default_entry_list,
-									acl.default_entry_list))
-	
+		if acl.is_basic(): return self.is_basic()
+		if self.acl_text != acl.acl_text: return 0
+		if not self.def_acl_text and not acl.def_acl_text: return 1
+		return self.def_acl_text == acl.def_acl_text
 	def __ne__(self, acl): return not self.__eq__(acl)
 	
 	def eq_verbose(self, acl):
@@ -305,12 +233,16 @@ class AccessControlLists:
 		if self.index != acl.index:
 			print "index %s not equal to index %s" % (self.index, acl.index)
 			return 0
-		if not self.cmp_entry_list(self.entry_list, acl.entry_list):
-			print "ACL entries for %s compare differently" % (self.index,)
+		if self.acl_text != acl.acl_text:
+			print "ACL texts not equal:"
+			print self.acl_text
+			print acl.acl_text
 			return 0
-		if not self.cmp_entry_list(self.default_entry_list,
-								   acl.default_entry_list):
-			print "Default ACL entries for %s do not compare" % (self.index,)
+		if (self.def_acl_text != acl.def_acl_text and
+			(self.def_acl_text or acl.def_acl_text)):
+			print "Unequal default acl texts:"
+			print self.def_acl_text
+			print acl.def_acl_text
 			return 0
 		return 1
 
@@ -324,158 +256,87 @@ class AccessControlLists:
 		features.
 
 		"""
-		if not self.entry_list and not self.default_entry_list: return 1
-		assert len(self.entry_list) >= 3, self.entry_list
-		return len(self.entry_list) == 3 and not self.default_entry_list
+		if not self.acl_text and not self.def_acl_text: return 1
+		lines = self.acl_text.strip().split('\n')
+		assert len(lines) >= 3, lines
+		return len(lines) == 3 and not self.def_acl_text
 
 	def read_from_rp(self, rp):
 		"""Set self.ACL from an rpath, or None if not supported"""
-		self.entry_list, self.default_entry_list = \
-						 rp.conn.eas_acls.get_acl_lists_from_rp(rp)
+		self.acl_text, self.def_acl_text = \
+					   rp.conn.eas_acls.get_acl_text_from_rp(rp)
 
-	def write_to_rp(self, rp, map_names = 1):
+	def write_to_rp(self, rp):
 		"""Write current access control list to RPath rp"""
-		rp.conn.eas_acls.set_rp_acl(rp, self.entry_list,
-									self.default_entry_list, map_names)
+		rp.conn.eas_acls.set_rp_acl(rp, self.acl_text, self.def_acl_text)
 
-
-def set_rp_acl(rp, entry_list = None, default_entry_list = None,
-			   map_names = 1):
+def set_rp_acl(rp, acl_text = None, def_acl_text = None):
 	"""Set given rp with ACL that acl_text defines.  rp should be local"""
 	assert rp.conn is Globals.local_connection
-	if entry_list: acl = list_to_acl(entry_list, map_names)
+	if acl_text:
+		acl = posix1e.ACL(text=acl_text)
+		assert acl.valid()
 	else: acl = posix1e.ACL()
 	acl.applyto(rp.path)
-
 	if rp.isdir():
-		if default_entry_list:
-			def_acl = list_to_acl(default_entry_list, map_names)
+		if def_acl_text:
+			def_acl = posix1e.ACL(text=def_acl_text)
+			assert def_acl.valid()
 		else: def_acl = posix1e.ACL()
 		def_acl.applyto(rp.path, posix1e.ACL_TYPE_DEFAULT)
 
-def get_acl_lists_from_rp(rp):
-	"""Returns (acl_list, def_acl_list) from an rpath.  Call locally"""
+def get_acl_text_from_rp(rp):
+	"""Returns (acl_text, def_acl_text) from an rpath.  Call locally"""
 	assert rp.conn is Globals.local_connection
-	try: acl = posix1e.ACL(file=rp.path)
+	try: acl_text = str(posix1e.ACL(file=rp.path))
 	except IOError, exc:
-		if exc[0] == errno.EOPNOTSUPP: acl = None
+		if exc[0] == errno.EOPNOTSUPP: acl_text = None
 		else: raise
 	if rp.isdir():
-		try: def_acl = posix1e.ACL(filedef=rp.path)
+		try: def_acl_text = str(posix1e.ACL(filedef=rp.path))
 		except IOError, exc:
-			if exc[0] == errno.EOPNOTSUPP: def_acl = None
+			if exc[0] == errno.EOPNOTSUPP: def_acl_text = None
 			else: raise
-	else: def_acl = None
-	return (acl and acl_to_list(acl), def_acl and acl_to_list(def_acl))
-
-def acl_to_list(acl):
-	"""Return list representation of posix1e.ACL object
-
-	ACL objects cannot be pickled, so this representation keeps
-	the structure while adding that option.  Also we insert the
-	username along with the id, because that information will be
-	lost when moved to another system.
-
-	The result will be a list of tuples.  Each tuple will have the
-	form (acltype, (uid or gid, uname or gname) or None,
-	permissions as an int).
-
-	"""
-	def entry_to_tuple(entry):
-		if entry.tag_type == posix1e.ACL_USER:
-			uid = entry.qualifier
-			owner_pair = (uid, user_group.uid2uname(uid))
-		elif entry.tag_type == posix1e.ACL_GROUP:
-			gid = entry.qualifier
-			owner_pair = (gid, user_group.gid2gname(gid))
-		else: owner_pair = None
-
-		perms = (entry.permset.read << 2 | 
-				 entry.permset.write << 1 |
-				 entry.permset.execute)
-		return (entry.tag_type, owner_pair, perms)
-	return map(entry_to_tuple, acl)
-
-def list_to_acl(entry_list, map_names = 1):
-	"""Return posix1e.ACL object from list representation
-
-	If map_names is true, use user_group to update the names for the
-	current system, and drop if not available.  Otherwise just use the
-	same id.
-
-	"""
-	def warn_drop(name):
-		"""Warn about acl with name getting dropped"""
-		global dropped_acl_names
-		if Globals.never_drop_acls:
-			log.Log.FatalError(
-"--never-drop-acls specified but cannot map name\n"
-"%s occurring inside an ACL." % (name,))
-		if dropped_acl_names.has_key(name): return
-		log.Log("Warning: name %s not found on system, dropping ACL entry.\n"
-				"Further ACL entries dropped with this name will not "
-				"trigger further warnings" % (name,), 2)
-		dropped_acl_names[name] = name
-
-	def map_id_name(owner_pair, group = None):
-		"""Return id of mapped id and user given original owner_pair"""
-		id, name = owner_pair
-		Map = group and user_group.GroupMap or user_group.UserMap
-		if name: return Map.get_id_from_name(name)
-		else:
-			assert id is not None
-			return Map.get_id_from_id(id)
-
-	acl = posix1e.ACL()
-	for tag, owner_pair, perms in entry_list:
-		id = None
-		if owner_pair:
-			if map_names:
-				if tag == posix1e.ACL_USER: id = map_id_name(owner_pair, 0)
-				else:
-					assert tag == posix1e.ACL_GROUP, (tag, owner_pair, perms)
-					id = map_id_name(owner_pair, 1)
-				if id is None:
-					warn_drop(owner_pair[1])
-					continue
-			else:
-				assert owner_pair[0] is not None, (tag, owner_pair, perms)
-				id = owner_pair[0]
-
-		entry = posix1e.Entry(acl)
-		entry.tag_type = tag
-		if id is not None: entry.qualifier = id
-		entry.permset.read = perms >> 2
-		entry.permset.write = perms >> 1 & 1
-		entry.permset.execute = perms & 1
-	return acl
+	else: def_acl_text = None
+	return (acl_text, def_acl_text)
 
 def acl_compare_rps(rp1, rp2):
 	"""Return true if rp1 and rp2 have same acl information"""
-	acl1 = AccessControlLists(rp1.index)
+	acl1 = AccessControlList(rp1.index)
 	acl1.read_from_rp(rp1)
-	acl2 = AccessControlLists(rp2.index)
+	acl2 = AccessControlList(rp2.index)
 	acl2.read_from_rp(rp2)
 	return acl1 == acl2
 
 
 def ACL2Record(acl):
-	"""Convert an AccessControlLists object into a text record"""
-	return '# file: %s\n%s\n' % (C.acl_quote(acl.get_indexpath()), str(acl))
+	"""Convert an AccessControlList object into a text record"""
+	start = "# file: %s\n%s" % (acl.get_indexpath(), acl.acl_text)
+	if not acl.def_acl_text: return start
+	default_lines = acl.def_acl_text.strip().split('\n')
+	default_text = '\ndefault:'.join(default_lines)
+	return "%sdefault:%s\n" % (start, default_text)
 
 def Record2ACL(record):
-	"""Convert text record to an AccessControlLists object"""
-	newline_pos = record.find('\n')
-	first_line = record[:newline_pos]
+	"""Convert text record to an AccessControlList object"""
+	lines = record.split('\n')
+	first_line = lines.pop(0)
 	if not first_line.startswith('# file: '):
 		raise metadata.ParsingError("Bad record beginning: "+ first_line)
 	filename = first_line[8:]
 	if filename == '.': index = ()
-	else: index = tuple(C.acl_unquote(filename).split('/'))
-	return AccessControlLists(index, record[newline_pos:])
+	else: index = tuple(filename.split('/'))
+
+	normal_entries = []; default_entries = []
+	for line in lines:
+		if line.startswith('default:'): default_entries.append(line[8:])
+		else: normal_entries.append(line)
+	return AccessControlList(index, acl_text='\n'.join(normal_entries),
+							 def_acl_text='\n'.join(default_entries))
+	
 
 class ACLExtractor(EAExtractor):
-	"""Iterate AccessControlLists objects from the ACL information file
+	"""Iterate AccessControlList objects from the ACL information file
 
 	Except for the record_to_object method, we can reuse everything in
 	the EAExtractor class because the file formats are so similar.
@@ -496,7 +357,7 @@ class AccessControlListFile(metadata.FlatFile):
 			collated = rorpiter.CollateIterators(rorp_iter, acl_iter)
 			for rorp, acl in collated:
 				assert rorp, "Missing rorp for index %s" % (acl.index,)
-				if not acl: acl = AccessControlLists(rorp.index)
+				if not acl: acl = AccessControlList(rorp.index)
 				rorp.set_acl(acl)
 				yield rorp
 
@@ -532,25 +393,3 @@ def GetCombinedMetadataIter(rbdir, time, restrict_index = None,
 			metadata_iter, rbdir, time, restrict_index)
 	return metadata_iter
 
-
-def rpath_acl_get(rp):
-	"""Get acls of given rpath rp.
-
-	This overrides a function in the rpath module.
-
-	"""
-	acl = AccessControlLists(rp.index)
-	if not rp.issym(): acl.read_from_rp(rp)
-	return acl
-rpath.acl_get = rpath_acl_get
-
-def rpath_ea_get(rp):
-	"""Get extended attributes of given rpath
-
-	This overrides a function in the rpath module.
-
-	"""
-	ea = ExtendedAttributes(rp.index)
-	if not rp.issym(): ea.read_from_rp(rp)
-	return ea
-rpath.ea_get = rpath_ea_get

@@ -1,4 +1,4 @@
-# Copyright 2002, 2003 Ben Escoto
+# Copyright 2002 Ben Escoto
 #
 # This file is part of rdiff-backup.
 #
@@ -22,7 +22,7 @@
 from __future__ import generators
 import tempfile, os, cStringIO
 import Globals, Time, Rdiff, Hardlink, rorpiter, selection, rpath, \
-	   log, static, robust, metadata, statistics, TempFile, eas_acls
+	   log, static, robust, metadata, statistics, TempFile
 
 
 # This should be set to selection.Select objects over the source and
@@ -48,6 +48,7 @@ def Restore(mirror_rp, inc_rpath, target, restore_to_time):
 	target_iter = TargetS.get_initial_iter(target)
 	diff_iter = MirrorS.get_diffs(target_iter)
 	TargetS.patch(target, diff_iter)
+	MirrorS.close_rf_cache()
 
 def get_inclist(inc_rpath):
 	"""Returns increments with given base"""
@@ -87,14 +88,10 @@ def ListChangedSince(mirror_rp, inc_rp, restore_to_time):
 		path_desc = (old_rorp and old_rorp.get_indexpath() or
 					 cur_rorp.get_indexpath())
 		yield rpath.RORPath(("%-7s %s" % (change, path_desc),))
-
+	MirrorStruct.close_rf_cache()
 
 def ListAtTime(mirror_rp, inc_rp, time):
-	"""List the files in archive at the given time
-
-	Output is a RORP Iterator with info in index.  See ListChangedSince.
-
-	"""
+	"""List the files in archive at the given time"""
 	assert mirror_rp.conn is Globals.local_connection, "Run locally only"
 	MirrorStruct.set_mirror_and_rest_times(time)
 	MirrorStruct.initialize_rf_cache(mirror_rp, inc_rp)
@@ -136,19 +133,15 @@ class MirrorStruct:
 		older one here.
 
 		"""
-		inctimes = cls.get_increment_times()
+		global _rest_time
+		base_incs = get_inclist(Globals.rbdir.append("increments"))
+		if not base_incs: return _mirror_time
+		inctimes = [inc.getinctime() for inc in base_incs]
+		inctimes.append(_mirror_time)
 		older_times = filter(lambda time: time <= restore_to_time, inctimes)
 		if older_times: return max(older_times)
 		else: # restore time older than oldest increment, just return that
 			return min(inctimes)
-
-	def get_increment_times(cls, rp = None):
-		"""Return list of times of backups, including current mirror"""
-		if not _mirror_time: return_list = [cls.get_mirror_time()]
-		else: return_list = [_mirror_time]
-		if not rp or not rp.index: rp = Globals.rbdir.append("increments")
-		for inc in get_inclist(rp): return_list.append(inc.getinctime())
-		return return_list
 
 	def initialize_rf_cache(cls, mirror_base, inc_base):
 		"""Set cls.rf_cache to CachedRF object"""
@@ -157,6 +150,10 @@ class MirrorStruct:
 		cls.mirror_base, cls.inc_base = mirror_base, inc_base
 		cls.root_rf = rf
 		cls.rf_cache = CachedRF(rf)
+
+	def close_rf_cache(cls):
+		"""Run anything remaining on CachedRF object"""
+		cls.rf_cache.close()
 
 	def get_mirror_rorp_iter(cls, rest_time = None, require_metadata = None):
 		"""Return iter of mirror rps at given restore time
@@ -169,13 +166,11 @@ class MirrorStruct:
 
 		"""
 		if rest_time is None: rest_time = _rest_time
-
-		rorp_iter = eas_acls.GetCombinedMetadataIter(
-			Globals.rbdir, rest_time, restrict_index = cls.mirror_base.index,
-			acls = Globals.write_acls, eas = Globals.write_eas)
-		if not rorp_iter:
-			if require_metadata:
-				log.Log.FatalError("Mirror metadata not found")
+		metadata_iter = metadata.GetMetadata_at_time(Globals.rbdir,
+				 rest_time, restrict_index = cls.mirror_base.index)
+		if metadata_iter: rorp_iter = metadata_iter
+		elif require_metadata: log.Log.FatalError("Mirror metadata not found")
+		else:
 			log.Log("Warning: Mirror metadata not found, "
 					"reading from directory", 2)
 			rorp_iter = cls.get_rorp_iter_from_rf(cls.root_rf)
@@ -195,7 +190,9 @@ class MirrorStruct:
 		rorp = rf.get_attribs()
 		yield rorp
 		if rorp.isdir():
-			for sub_rf in rf.yield_sub_rfs(): yield sub_rf.get_attribs()
+			for sub_rf in rf.yield_sub_rfs():
+				for attribs in cls.get_rorp_iter_from_rf(sub_rf):
+					yield attribs
 
 	def subtract_indicies(cls, index, rorp_iter):
 		"""Subtract index from index of each rorp in rorp_iter
@@ -295,6 +292,8 @@ class CachedRF:
 		"""Initialize CachedRF, self.rf_list variable"""
 		self.root_rf = root_rf
 		self.rf_list = [] # list should filled in index order
+		if Globals.process_uid != 0:
+			self.perm_changer = PermissionChanger(root_rf.mirror_rp)
 
 	def list_rfs_in_cache(self, index):
 		"""Used for debugging, return indicies of cache rfs for printing"""
@@ -309,7 +308,9 @@ class CachedRF:
 			if not self.rf_list:
 				if not self.add_rfs(index): return None
 			rf = self.rf_list[0]
-			if rf.index == index: return rf
+			if rf.index == index:
+				if Globals.process_uid != 0: self.perm_changer(rf.mirror_rp)
+				return rf
 			elif rf.index > index:
 				# Try to add earlier indicies.  But if first is
 				# already from same directory, or we can't find any
@@ -339,12 +340,17 @@ The cause is probably data loss from the destination directory.""" %
 		parent_index = index[:-1]
 		temp_rf = RestoreFile(self.root_rf.mirror_rp.new_index(parent_index),
 							  self.root_rf.inc_rp.new_index(parent_index), [])
+		if Globals.process_uid != 0: self.perm_changer(temp_rf.mirror_rp)
 		new_rfs = list(temp_rf.yield_sub_rfs())
 		if not new_rfs:
 			log.Log("Warning: No RFs added for index %s" % (index,), 2)
 			return 0
 		self.rf_list[0:0] = new_rfs
 		return 1
+
+	def close(self):
+		"""Finish remaining rps in PermissionChanger"""
+		if Globals.process_uid != 0: self.perm_changer.finish()
 
 
 class RestoreFile:
@@ -617,3 +623,65 @@ class PatchITRB(rorpiter.ITRBranch):
 			self.base_rp.rmdir()
 			if self.dir_replacement.lstat():
 				rpath.rename(self.dir_replacement, self.base_rp)
+
+
+class PermissionChanger:
+	"""Change the permission of mirror files and directories
+
+	The problem is that mirror files and directories may need their
+	permissions changed in order to be read and listed, and then
+	changed back when we are done.  This class hooks into the CachedRF
+	object to know when an rp is needed.
+
+	"""
+	def __init__(self, root_rp):
+		self.root_rp = root_rp
+		self.current_index = ()
+		# Below is a list of (index, rp, old_perm) triples in reverse
+		# order that need clearing
+		self.open_index_list = []
+
+	def __call__(self, rp):
+		"""Given rpath, change permissions up and including rp"""
+		index, old_index = rp.index, self.current_index
+		self.current_index = index
+		if not index or index == old_index: return
+		assert index > old_index, (index, old_index)
+		self.restore_old(rp, index)
+		self.add_new(rp, old_index, index)
+
+	def restore_old(self, rp, index):
+		"""Restore permissions for indicies we are done with"""
+		while self.open_index_list:
+			old_index, old_rp, old_perms = self.open_index_list[0]
+			if index[:len(old_index)] > old_index: old_rp.chmod(old_perms)
+			else: break
+			del self.open_index_list[0]
+
+	def add_new(self, rp, old_index, index):
+		"""Change permissions of directories between old_index and index"""
+		for rp in self.get_new_rp_list(rp, old_index, index):
+			if ((rp.isreg() and not rp.readable()) or
+				(rp.isdir() and not rp.hasfullperms())):
+				old_perms = rp.getperms()
+				self.open_index_list.insert(0, (index, rp, old_perms))
+				if rp.isreg(): rp.chmod(0400 | old_perms)
+				else: rp.chmod(0700 | old_perms)
+
+	def get_new_rp_list(self, rp, old_index, index):
+		"""Return list of new rp's between old_index and index"""
+		for i in range(len(index)-1, -1, -1):
+			if old_index[:i] == index[:i]:
+				common_prefix_len = i
+				break
+		else: assert 0
+
+		new_rps = []
+		for total_len in range(common_prefix_len+1, len(index)):
+			new_rps.append(self.root_rp.new_index(index[:total_len]))
+		new_rps.append(rp)
+		return new_rps
+
+	def finish(self):
+		"""Restore any remaining rps"""
+		for index, rp, perms in self.open_index_list: rp.chmod(perms)
