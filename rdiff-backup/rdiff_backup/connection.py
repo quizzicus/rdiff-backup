@@ -6,9 +6,11 @@ import types, os, tempfile, cPickle, shutil, traceback
 # connection - Code that deals with remote execution
 #
 
-class ConnectionError(Exception): pass
+class ConnectionError(Exception):
+	pass
 
-class ConnectionQuit(Exception): pass
+class ConnectionQuit(Exception):
+	pass
 
 
 class Connection:
@@ -431,10 +433,6 @@ class VirtualFile:
 		return cls.vfiles[id].read(length)
 	readfromid = classmethod(readfromid)
 
-	def readlinefromid(cls, id):
-		return cls.vfiles[id].readline()
-	readlinefromid = classmethod(readlinefromid)
-
 	def writetoid(cls, id, buffer):
 		return cls.vfiles[id].write(buffer)
 	writetoid = classmethod(writetoid)
@@ -461,9 +459,6 @@ class VirtualFile:
 
 	def read(self, length = -1):
 		return self.connection.VirtualFile.readfromid(self.id, length)
-
-	def readline(self):
-		return self.connection.VirtualFile.readlinefromid(self.id)
 
 	def write(self, buf):
 		return self.connection.VirtualFile.writetoid(self.id, buf)

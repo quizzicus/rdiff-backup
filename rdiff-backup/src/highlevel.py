@@ -1,5 +1,5 @@
 from __future__ import generators
-execfile("manage.py")
+execfile("filelist.py")
 
 #######################################################################
 #
@@ -61,19 +61,12 @@ class HighLevel:
 		dest_rpath.setdata()
 		inc_rpath.setdata()
 
-	def Restore(rest_time, mirror_base, rel_index, baseinc_tup, target_base):
+	def Restore(rest_time, mirror_base, baseinc_tup, target_base):
 		"""Like Restore.RestoreRecursive but check arguments"""
-		if (Globals.preserve_hardlinks != 0 and
-			Hardlink.retrieve_final(rest_time)):
-			Log("Hard link information found, attempting to preserve "
-				"hard links.", 4)
-			SetConnections.UpdateGlobal('preserve_hardlinks', 1)
-		else: SetConnections.UpdateGlobal('preserve_hardlinks', None)
-
 		if not isinstance(target_base, DSRPath):
 			target_base = DSRPath(target_base.conn, target_base.base,
 								  target_base.index, target_base.data)
-		Restore.RestoreRecursive(rest_time, mirror_base, rel_index,
+		Restore.RestoreRecursive(rest_time, mirror_base,
 								 baseinc_tup, target_base)
 
 MakeStatic(HighLevel)
@@ -161,38 +154,27 @@ class HLDestinationStruct:
 
 		"""
 		collated = RORPIter.CollateIterators(src_init_iter, dest_init_iter)
-		def compare(src_rorp, dest_dsrp):
-			"""Return dest_dsrp if they are different, None if the same"""
-			if not dest_dsrp:
-				dest_dsrp = DSRPath(baserp.conn, baserp.base, src_rorp.index)
-				if dest_dsrp.lstat():
-					Log("Warning: Found unexpected destination file %s, "
-						"not processing it." % dest_dsrp.path, 2)
-					return None
-			elif (src_rorp and src_rorp == dest_dsrp and
-				  (not Globals.preserve_hardlinks or
-				   Hardlink.rorp_eq(src_rorp, dest_dsrp))):
-				return None
-			if src_rorp and src_rorp.isreg() and Hardlink.islinked(src_rorp):
-				dest_dsrp.flaglinked()
-			return dest_dsrp
-
 		def generate_dissimilar():
 			counter = 0
 			for src_rorp, dest_dsrp in collated:
-				if Globals.preserve_hardlinks:
-					if src_rorp: Hardlink.add_rorp(src_rorp, 1)
-					if dest_dsrp: Hardlink.add_rorp(dest_dsrp, None)
-				dsrp = compare(src_rorp, dest_dsrp)
-				if dsrp:
+				if not dest_dsrp:
+					dsrp = DSRPath(baserp.conn, baserp.base, src_rorp.index)
+					if dsrp.lstat():
+						Log("Warning: Found unexpected destination file %s."
+							% dsrp.path, 2)
+						if DestructiveStepping.isexcluded(dsrp, None): continue
 					counter = 0
 					yield dsrp
-				elif counter == 20:
-					placeholder = RORPath(src_rorp.index)
-					placeholder.make_placeholder()
+				elif not src_rorp or not src_rorp == dest_dsrp:
 					counter = 0
-					yield placeholder
-				else: counter += 1
+					yield dest_dsrp
+				else: # source and destinition both exist and are same
+					if counter == 20:
+						placeholder = RORPath(src_rorp.index)
+						placeholder.make_placeholder()
+						counter = 0
+						yield placeholder
+					else: counter += 1
 		return generate_dissimilar()
 
 	def get_sigs(cls, baserp, src_init_iter):
@@ -243,8 +225,6 @@ class HLDestinationStruct:
 				if checkpoint: SaveState.checkpoint_mirror(finalizer, dsrp)
 		except: cls.handle_last_error(dsrp, finalizer)
 		finalizer.getresult()
-		if Globals.preserve_hardlinks and Globals.rbdir:
-			Hardlink.final_writedata()
 		if checkpoint: SaveState.checkpoint_remove()
 
 	def patch_increment_and_finalize(cls, dest_rpath, diffs, inc_rpath):
@@ -278,7 +258,6 @@ class HLDestinationStruct:
 		except: cls.handle_last_error(dsrp, finalizer, ITR)
 		ITR.getresult()
 		finalizer.getresult()
-		if Globals.preserve_hardlinks: Hardlink.final_writedata()
 		SaveState.checkpoint_remove()
 
 	def check_skip_error(cls, thunk):
@@ -303,8 +282,6 @@ class HLDestinationStruct:
 		Log.exception(1)
 		if ITR: SaveState.checkpoint_inc_backup(ITR, finalizer, dsrp, 1)
 		else: SaveState.checkpoint_mirror(finalizer, dsrp, 1)
-		if Globals.preserve_hardlinks:
-			Hardlink.final_checkpoint(Globals.rbdir)
 		SaveState.touch_last_file_definitive()
 		raise
 
