@@ -21,7 +21,7 @@
 
 from __future__ import absolute_import
 import time, types, re, sys, calendar
-from . import Globals
+from rdiff_backup import Globals
 from six.moves import map
 
 

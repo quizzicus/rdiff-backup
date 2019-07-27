@@ -41,4 +41,4 @@ def MakeClass(cls):
 	"""Turn instance methods into classmethods.  Ignore _ like above"""
 	for name in cls.__dict__:
 		if name[0] != "_":
-			cls.__dict__[name] = classmethod(cls.__dict__[name])
+			setattr(cls, name, classmethod(cls.__dict__[name]))

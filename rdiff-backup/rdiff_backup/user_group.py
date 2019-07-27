@@ -36,7 +36,7 @@ try:
 except ImportError:
 	pass
 
-from . import log, Globals
+from rdiff_backup import log, Globals
 
 ############ "Private" section - don't use outside user_group ###########
 

@@ -38,7 +38,7 @@ _librsync_seterror(rs_result result, char *location)
 
 
 /* --------------- SigMaker Object for incremental signatures */
-staticforward PyTypeObject _librsync_SigMakerType;
+static PyTypeObject _librsync_SigMakerType;
 
 typedef struct {
   PyObject_HEAD
@@ -168,7 +168,7 @@ static PyTypeObject _librsync_SigMakerType = {
 
 /* --------------- DeltaMaker Object for incremental deltas */
 
-staticforward PyTypeObject _librsync_DeltaMakerType;
+static PyTypeObject _librsync_DeltaMakerType;
 
 typedef struct {
   PyObject_HEAD
@@ -321,7 +321,7 @@ static PyTypeObject _librsync_DeltaMakerType = {
 /* --------------- PatchMaker Object for incremental patching */
 
 
-staticforward PyTypeObject _librsync_PatchMakerType;
+static PyTypeObject _librsync_PatchMakerType;
 
 typedef struct {
   PyObject_HEAD
@@ -470,8 +470,8 @@ void init_librsync(void)
 {
   PyObject *m, *d;
 
-  _librsync_SigMakerType.ob_type = &PyType_Type;
-  _librsync_DeltaMakerType.ob_type = &PyType_Type;
+  Py_TYPE(&_librsync_SigMakerType) = &PyType_Type;
+  Py_TYPE(&_librsync_DeltaMakerType) = &PyType_Type;
   m = Py_InitModule("_librsync", _librsyncMethods);
   d = PyModule_GetDict(m);
   librsyncError = PyErr_NewException("_librsync.librsyncError", NULL, NULL);
