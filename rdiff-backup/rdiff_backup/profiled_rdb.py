@@ -7,6 +7,7 @@ statistics afterwards.
 
 """
 
+from __future__ import absolute_import
 __no_execute__ = 1
 import sys, rdiff_backup.Main, profile, pstats
 profile.run("rdiff_backup.Main.Main(%s)" % repr(sys.argv[1:]),

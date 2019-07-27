@@ -6,6 +6,7 @@ Useful for benchmarking and testing of librsync and _librsync.
 
 """
 
+from __future__ import absolute_import
 import librsync, sys
 blocksize = 32768
 

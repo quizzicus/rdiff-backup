@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import absolute_import
+from __future__ import print_function
 import sys, os
 from distutils.core import setup, Extension
 
@@ -16,7 +18,7 @@ setup(name="CModule",
 def get_libraries():
 	"""Return filename of C.so and _librsync.so files"""
 	build_files = os.listdir("build")
-	lib_dirs = filter(lambda x: x.startswith("lib"), build_files)
+	lib_dirs = [x for x in build_files if x.startswith("lib")]
 	assert len(lib_dirs) == 1, "No library directory or too many"
 	libdir = lib_dirs[0]
 	if sys.platform == "cygwin" or os.name == "nt": libext = "dll"
@@ -27,7 +29,7 @@ def get_libraries():
 		os.lstat(clib)
 		os.lstat(rsynclib)
 	except os.error:
-		print "Library file missing"
+		print("Library file missing")
 		sys.exit(1)
 	return clib, rsynclib
 	

@@ -30,8 +30,11 @@ handle that error.)
 """
 
 from __future__ import generators
+from __future__ import absolute_import
 import os, re, types
-import Globals, log, rpath
+from . import Globals, log, rpath
+from six.moves import map
+import six
 
 # If true, enable character quoting, and set characters making
 # regex-style range.
@@ -65,7 +68,7 @@ def set_init_quote_vals_local():
 def init_quoting_regexps():
 	"""Compile quoting regular expressions"""
 	global chars_to_quote_regexp, unquoting_regexp
-	assert chars_to_quote and type(chars_to_quote) is types.StringType, \
+	assert chars_to_quote and type(chars_to_quote) is bytes, \
 		   "Chars to quote: '%s'" % (chars_to_quote,)
 	try:
 		chars_to_quote_regexp = \
@@ -159,9 +162,9 @@ class QuotedRPath(rpath.RPath):
 
 		"""
 		path = self.path
-		if type(path) != unicode and Globals.use_unicode_paths:
-			path = unicode(path, 'utf-8')
-		return map(unquote, self.conn.os.listdir(path))
+		if type(path) != six.text_type and Globals.use_unicode_paths:
+			path = six.text_type(path, 'utf-8')
+		return list(map(unquote, self.conn.os.listdir(path)))
 
 	def __str__(self):
 		return "QuotedPath: %s\nIndex: %s\nData: %s" % \
@@ -252,7 +255,7 @@ def walk(top, topdown=True, onerror=None):
 		# Note that listdir and error are globals in this module due
 		# to earlier import-*.
 		names = listdir(top)
-	except error, err:
+	except error as err:
 		if onerror is not None:
 			onerror(err)
 		return

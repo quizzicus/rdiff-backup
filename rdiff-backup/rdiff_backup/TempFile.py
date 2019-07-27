@@ -24,8 +24,9 @@ Now we just use normal rpaths instead of the TempFile class.
 
 """
 
+from __future__ import absolute_import
 import os
-import Globals, rpath
+from . import Globals, rpath
 
 # To make collisions less likely, this gets put in the file name
 # and incremented whenever a new file is requested.

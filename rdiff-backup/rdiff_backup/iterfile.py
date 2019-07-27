@@ -19,8 +19,10 @@
 
 """Convert an iterator to a file object and vice-versa"""
 
-import cPickle, array, types
+from __future__ import absolute_import
+import six.moves.cPickle, array, types
 import Globals, C, robust, log, rpath
+from six.moves import range
 
 
 class IterFileException(Exception): pass
@@ -33,7 +35,7 @@ class UnwrapFile:
 	def _s2l_old(self, s):
 		"""Convert string to long int"""
 		assert len(s) == 7
-		l = 0L
+		l = 0
 		for i in range(7): l = l*256 + ord(s[i])
 		return l
 
@@ -58,7 +60,7 @@ class UnwrapFile:
 			assert None, "Header %s is only %d bytes" % (header, len(header))
 		type, length = header[0], C.str2long(header[1:])
 		buf = self.file.read(length)
-		if type in ("o", "e", "h"): return type, cPickle.loads(buf)
+		if type in ("o", "e", "h"): return type, six.moves.cPickle.loads(buf)
 		else:
 			assert type in ("f", "c")
 			return type, buf
@@ -199,15 +201,15 @@ class FileWrappingIter:
 		"""
 		if self.currently_in_file: self.addfromfile("c")
 		else:
-			try: currentobj = self.iter.next()
+			try: currentobj = next(self.iter)
 			except StopIteration: return None
 			if hasattr(currentobj, "read") and hasattr(currentobj, "close"):
 				self.currently_in_file = currentobj
 				self.addfromfile("f")
 			else:
-				pickle = cPickle.dumps(currentobj, 1)
+				pickle = six.moves.cPickle.dumps(currentobj, 1)
 				self.array_buf.fromstring("o")
-				self.array_buf.fromstring(C.long2str(long(len(pickle))))
+				self.array_buf.fromstring(C.long2str(int(len(pickle))))
 				self.array_buf.fromstring(pickle)
 		return 1
 
@@ -224,14 +226,14 @@ class FileWrappingIter:
 										[Globals.blocksize])
 		if buf is None: # error occurred above, encode exception
 			self.currently_in_file = None
-			excstr = cPickle.dumps(self.last_exception, 1)
-			total = "".join(('e', C.long2str(long(len(excstr))), excstr))
+			excstr = six.moves.cPickle.dumps(self.last_exception, 1)
+			total = "".join(('e', C.long2str(int(len(excstr))), excstr))
 		else:
-			total = "".join((prefix_letter, C.long2str(long(len(buf))), buf))
+			total = "".join((prefix_letter, C.long2str(int(len(buf))), buf))
 			if buf == "": # end of file
-				cstr = cPickle.dumps(self.currently_in_file.close(), 1)
+				cstr = six.moves.cPickle.dumps(self.currently_in_file.close(), 1)
 				self.currently_in_file = None
-				total += "".join(('h', C.long2str(long(len(cstr))), cstr))
+				total += "".join(('h', C.long2str(int(len(cstr))), cstr))
 		self.array_buf.fromstring(total)
 
 	def read_error_handler(self, exc, blocksize):
@@ -322,7 +324,7 @@ class MiscIterToFile(FileWrappingIter):
 				currentobj = self.next_in_line
 				self.next_in_line = 0
 			else:
-				try: currentobj = self.iter.next()
+				try: currentobj = next(self.iter)
 				except StopIteration:
 					self.addfinal()
 					return None
@@ -341,27 +343,27 @@ class MiscIterToFile(FileWrappingIter):
 
 	def add_misc(self, obj):
 		"""Add an arbitrary pickleable object to the buffer"""
-		pickle = cPickle.dumps(obj, 1)
+		pickle = six.moves.cPickle.dumps(obj, 1)
 		self.array_buf.fromstring("o")
-		self.array_buf.fromstring(C.long2str(long(len(pickle))))
+		self.array_buf.fromstring(C.long2str(int(len(pickle))))
 		self.array_buf.fromstring(pickle)
 
 	def addrorp(self, rorp):
 		"""Add a rorp to the buffer"""
 		if rorp.file:
-			pickle = cPickle.dumps((rorp.index, rorp.data, 1), 1)
+			pickle = six.moves.cPickle.dumps((rorp.index, rorp.data, 1), 1)
 			self.next_in_line = rorp.file
 		else:
-			pickle = cPickle.dumps((rorp.index, rorp.data, 0), 1)
+			pickle = six.moves.cPickle.dumps((rorp.index, rorp.data, 0), 1)
 			self.rorps_in_buffer += 1
 		self.array_buf.fromstring("r")
-		self.array_buf.fromstring(C.long2str(long(len(pickle))))
+		self.array_buf.fromstring(C.long2str(int(len(pickle))))
 		self.array_buf.fromstring(pickle)
 		
 	def addfinal(self):
 		"""Signal the end of the iterator to the other end"""
 		self.array_buf.fromstring("z")
-		self.array_buf.fromstring(C.long2str(0L))
+		self.array_buf.fromstring(C.long2str(0))
 
 	def close(self): self.closed = 1
 
@@ -418,7 +420,7 @@ class FileToMiscIter(IterWrappingFile):
 		type, length = self.buf[0], C.str2long(self.buf[1:8])
 		data = self.buf[8:8+length]
 		self.buf = self.buf[8+length:]
-		if type in "oerh": return type, cPickle.loads(data)
+		if type in "oerh": return type, six.moves.cPickle.loads(data)
 		else: return type, data
 
 
@@ -431,4 +433,4 @@ class ErrorFile:
 	def close(self): return None
 
 
-import iterfile
+from . import iterfile

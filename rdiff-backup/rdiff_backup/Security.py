@@ -19,8 +19,9 @@
 
 """Functions to make sure remote requests are kosher"""
 
+from __future__ import absolute_import
 import sys, tempfile, types
-import Globals, Main, rpath, log
+from . import Globals, Main, rpath, log
 
 class Violation(Exception):
 	"""Exception that indicates an improper request has been received"""
@@ -244,7 +245,7 @@ def vet_filename(request, arglist):
 	i = file_requests[request.function_string]
 	if len(arglist) <= i: raise_violation(request, arglist)
 	filename = arglist[i]
-	if type(filename) is not types.StringType:
+	if type(filename) is not bytes:
 		raise_violation(request, arglist)
 	vet_rpath(rpath.RPath(Globals.local_connection, filename))
 
