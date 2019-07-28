@@ -20,7 +20,7 @@
  *   02111-1307 USA
  *
  * ----------------------------------------------------------------------- */
-
+#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -84,9 +84,7 @@ static PyObject *my_sync(PyObject *self, PyObject *args);
 
 /* Turn a stat structure into a python dictionary.  The preprocessor
    stuff taken from Python's posixmodule.c */
-static PyObject *c_make_file_dict(self, args)
-	 PyObject *self;
-	 PyObject *args;
+static PyObject *c_make_file_dict(PyObject *self, PyObject *args)
 {
 #if defined(MS_WINDOWS)
 	PyErr_SetString(PyExc_AttributeError, "This function is not implemented on Windows.");
@@ -217,9 +215,7 @@ static PyObject *c_make_file_dict(self, args)
 }
 
 /* Convert python long into 7 byte string */
-static PyObject *long2str(self, args)
-	 PyObject *self;
-	 PyObject *args;
+static PyObject *long2str(PyObject *self, PyObject *args)
 {
   unsigned char s[7];
   PyLongObject *pylong;
@@ -233,9 +229,7 @@ static PyObject *long2str(self, args)
 
 
 /* Run sync() and return None */
-static PyObject *my_sync(self, args)
-	 PyObject *self;
-	 PyObject *args;
+static PyObject *my_sync(PyObject *self, PyObject *args)
 {
   if (!PyArg_ParseTuple(args, "")) return NULL;
   SYNC();
@@ -244,9 +238,7 @@ static PyObject *my_sync(self, args)
 
 
 /* Reverse of above; convert 7 byte string into python long */
-static PyObject *str2long(self, args)
-	 PyObject *self;
-	 PyObject *args;
+static PyObject *str2long(PyObject *self, PyObject *args)
 {
   unsigned char *s;
   int ssize;
@@ -385,16 +377,14 @@ static PyObject *acl_unquote(PyObject *self, PyObject *args)
 /* duplicate here to avoid v2.3 requirement */
 
 #ifdef HAVE_LCHOWN
-static PyObject *
-posix_error_with_allocated_filename(char* name)
+static PyObject *posix_error_with_allocated_filename(char* name)
 {
 	PyObject *rc = PyErr_SetFromErrnoWithFilename(PyExc_OSError, name);
 	PyMem_Free(name);
 	return rc;
 }
 
-static PyObject *
-posix_lchown(PyObject *self, PyObject *args)
+static PyObject *posix_lchown(PyObject *self, PyObject *args)
 {
 	char *path = NULL;
 	long uid, gid;
@@ -417,33 +407,28 @@ posix_lchown(PyObject *self, PyObject *args)
 /* ------------- Python export lists -------------------------------- */
 
 static PyMethodDef CMethods[] = {
-  {"make_file_dict", c_make_file_dict, METH_VARARGS,
-   "Make dictionary from file stat"},
+  {"make_file_dict", c_make_file_dict, METH_VARARGS, "Make dictionary from file stat"},
   {"long2str", long2str, METH_VARARGS, "Convert python long to 7 byte string"},
   {"str2long", str2long, METH_VARARGS, "Convert 7 byte string to python long"},
   {"sync", my_sync, METH_VARARGS, "sync buffers to disk"},
-  {"acl_quote", acl_quote, METH_VARARGS,
-   "Quote string, escaping non-printables"},
-  {"acl_unquote", acl_unquote, METH_VARARGS,
-   "Unquote string, producing original input to quote"},
+  {"acl_quote", acl_quote, METH_VARARGS, "Quote string, escaping non-printables"},
+  {"acl_unquote", acl_unquote, METH_VARARGS, "Unquote string, producing original input to quote"},
 #ifdef HAVE_LCHOWN
-  {"lchown", posix_lchown, METH_VARARGS,
-   "Like chown, but don't follow symlinks"},
+  {"lchown", posix_lchown, METH_VARARGS, "Like chown, but don't follow symlinks"},
 #endif /* HAVE_LCHOWN */
   {NULL, NULL, 0, NULL}
 };
 
 static struct PyModuleDef cdef = {
-    PyModuleDef_HEAD_INIT, "C", "", -1, CMethods, NULL, NULL, NULL, NULL
+    PyModuleDef_HEAD_INIT, "C", "C methods", -1, CMethods, NULL, NULL, NULL, NULL
 };
 
-void PyInit_C(void)
+PyMODINIT_FUNC PyInit_C(void)
 {
   PyObject *m, *d;
-
   m = PyModule_Create(&cdef);
   d = PyModule_GetDict(m);
-  UnknownFileTypeError = PyErr_NewException("C.UnknownFileTypeError",
-											NULL, NULL);
+  UnknownFileTypeError = PyErr_NewException("C.UnknownFileTypeError", NULL, NULL);
   PyDict_SetItemString(d, "UnknownFileTypeError", UnknownFileTypeError);
+  return m;
 }
