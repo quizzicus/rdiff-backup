@@ -28,8 +28,7 @@
 static PyObject *librsyncError;
 
 /* Sets python error string from result */
-static void
-_librsync_seterror(rs_result result, char *location)
+static void _librsync_seterror(rs_result result, char *location)
 {
   char error_string[200];
   sprintf(error_string, "librsync error %d while in %s", result, location);
@@ -46,8 +45,7 @@ typedef struct {
   rs_job_t *sig_job;
 } _librsync_SigMakerObject;
 
-static PyObject*
-_librsync_new_sigmaker(PyObject* self, PyObject* args)
+static PyObject* _librsync_new_sigmaker(PyObject* self, PyObject* args)
 {
   _librsync_SigMakerObject* sm;
   long blocklen;
@@ -60,17 +58,14 @@ _librsync_new_sigmaker(PyObject* self, PyObject* args)
   sm->x_attr = NULL;
 
 #ifdef RS_DEFAULT_STRONG_LEN
-  sm->sig_job = rs_sig_begin((size_t)blocklen,
-                (size_t)RS_DEFAULT_STRONG_LEN);
+  sm->sig_job = rs_sig_begin((size_t)blocklen, (size_t)RS_DEFAULT_STRONG_LEN);
 #else
-  sm->sig_job = rs_sig_begin((size_t)blocklen,
-                (size_t)8, RS_MD4_SIG_MAGIC);
+  sm->sig_job = rs_sig_begin((size_t)blocklen, (size_t)8, RS_MD4_SIG_MAGIC);
 #endif
   return (PyObject*)sm;
 }
 
-static void
-_librsync_sigmaker_dealloc(PyObject* self)
+static void _librsync_sigmaker_dealloc(PyObject* self)
 {
   rs_job_free(((_librsync_SigMakerObject *)self)->sig_job);
   PyObject_Del(self);
@@ -81,8 +76,7 @@ _librsync_sigmaker_dealloc(PyObject* self)
    is true iff there is no more data coming and bytes_used is the
    number of bytes of the input string processed.
 */
-static PyObject *
-_librsync_sigmaker_cycle(_librsync_SigMakerObject *self, PyObject *args)
+static PyObject* _librsync_sigmaker_cycle(_librsync_SigMakerObject *self, PyObject *args)
 {
   char *inbuf, outbuf[RS_JOB_BLOCKSIZE];
   int inbuf_length;
@@ -115,9 +109,7 @@ static PyMethodDef _librsync_sigmaker_methods[] = {
   {NULL, NULL, 0, NULL}  /* sentinel */
 };
 
-static PyObject *
-_librsync_sigmaker_getattr(_librsync_SigMakerObject *sm,
-											 char *name)
+static PyObject* _librsync_sigmaker_getattr(_librsync_SigMakerObject *sm, char *name)
 {
   if (sm->x_attr != NULL) {
 	PyObject *v = PyDict_GetItemString(sm->x_attr, name);
@@ -126,12 +118,11 @@ _librsync_sigmaker_getattr(_librsync_SigMakerObject *sm,
 	  return v;
 	}
   }
-  return Py_FindMethod(_librsync_sigmaker_methods, (PyObject *)sm, name);
+  //return Py_FindMethod(_librsync_sigmaker_methods, (PyObject *)sm, name);
+  return PyObject_GenericGetAttr((PyObject *) sm, PyUnicode_FromString(name));
 }
 
-static int
-_librsync_sigmaker_setattr(_librsync_SigMakerObject *sm,
-									   char *name, PyObject *v)
+static int _librsync_sigmaker_setattr(_librsync_SigMakerObject *sm, char *name, PyObject *v)
 {
   if (sm->x_attr == NULL) {
 	sm->x_attr = PyDict_New();
@@ -140,8 +131,7 @@ _librsync_sigmaker_setattr(_librsync_SigMakerObject *sm,
   if (v == NULL) {
 	int rv = PyDict_DelItemString(sm->x_attr, name);
 	if (rv < 0)
-	  PyErr_SetString(PyExc_AttributeError,
-					  "delete non-existing sigmaker attribute");
+	  PyErr_SetString(PyExc_AttributeError, "delete non-existing sigmaker attribute");
 	return rv;
   }
   else return PyDict_SetItemString(sm->x_attr, name, v);
@@ -178,8 +168,7 @@ typedef struct {
 } _librsync_DeltaMakerObject;
 
 /* Call with the entire signature loaded into one big string */
-static PyObject*
-_librsync_new_deltamaker(PyObject* self, PyObject* args)
+static PyObject* _librsync_new_deltamaker(PyObject* self, PyObject* args)
 {
   _librsync_DeltaMakerObject* dm;
   char *sig_string, outbuf[RS_JOB_BLOCKSIZE];
@@ -219,8 +208,7 @@ _librsync_new_deltamaker(PyObject* self, PyObject* args)
   return (PyObject*)dm;
 }
 
-static void
-_librsync_deltamaker_dealloc(PyObject* self)
+static void _librsync_deltamaker_dealloc(PyObject* self)
 {
   _librsync_DeltaMakerObject *dm = (_librsync_DeltaMakerObject *)self;
   rs_signature_t *sig_ptr = dm->sig_ptr;
@@ -235,8 +223,7 @@ _librsync_deltamaker_dealloc(PyObject* self)
    more data is coming and bytes_used is the number of bytes of the
    input string processed.
 */
-static PyObject *
-_librsync_deltamaker_cycle(_librsync_DeltaMakerObject *self, PyObject *args)
+static PyObject* _librsync_deltamaker_cycle(_librsync_DeltaMakerObject *self, PyObject *args)
 {
   char *inbuf, outbuf[RS_JOB_BLOCKSIZE];
   int inbuf_length;
@@ -268,8 +255,7 @@ static PyMethodDef _librsync_deltamaker_methods[] = {
   {NULL, NULL, 0, NULL}  /* sentinel */
 };
 
-static PyObject *
-_librsync_deltamaker_getattr(_librsync_DeltaMakerObject *dm, char *name)
+static PyObject* _librsync_deltamaker_getattr(_librsync_DeltaMakerObject *dm, char *name)
 {
   if (dm->x_attr != NULL) {
 	PyObject *v = PyDict_GetItemString(dm->x_attr, name);
@@ -278,11 +264,11 @@ _librsync_deltamaker_getattr(_librsync_DeltaMakerObject *dm, char *name)
 	  return v;
 	}
   }
-  return Py_FindMethod(_librsync_deltamaker_methods, (PyObject *)dm, name);
+  //return Py_FindMethod(_librsync_deltamaker_methods, (PyObject *)dm, name);
+  return PyObject_GenericGetAttr((PyObject *) dm, PyUnicode_FromString(name));
 }
 
-static int
-_librsync_deltamaker_setattr(_librsync_DeltaMakerObject *dm,
+static int _librsync_deltamaker_setattr(_librsync_DeltaMakerObject *dm,
 							 char *name, PyObject *v)
 {
   if (dm->x_attr == NULL) {
@@ -351,7 +337,8 @@ static PyObject* _librsync_new_patchmaker(PyObject* self, PyObject* args)
   pm->x_attr = NULL;
 
   pm->basis_file = python_file;
-  cfile = PyFile_AsFile(python_file);
+  //cfile = PyFile_AsFile(python_file);
+  cfile = fdopen(PyObject_AsFileDescriptor(python_file), "r");
   pm->patch_job = rs_patch_begin(rs_file_copy_cb, cfile);
 
   return (PyObject*)pm;
@@ -414,7 +401,8 @@ _librsync_patchmaker_getattr(_librsync_PatchMakerObject *pm, char *name)
 	  return v;
 	}
   }
-  return Py_FindMethod(_librsync_patchmaker_methods, (PyObject *)pm, name);
+  //return Py_FindMethod(_librsync_patchmaker_methods, (PyObject *)pm, name);
+  return PyObject_GenericGetAttr((PyObject *) pm, PyUnicode_FromString(name));
 }
 
 static int
@@ -466,13 +454,16 @@ static PyMethodDef _librsyncMethods[] = {
   {NULL, NULL, 0, NULL}
 };
 
-void init_librsync(void)
+static struct PyModuleDef rsyncDef = {
+    PyModuleDef_HEAD_INIT, "_librsync", "rsync methods", -1, _librsyncMethods, NULL, NULL, NULL, NULL
+};
+
+PyMODINIT_FUNC PyInit__librsync(void)
 {
   PyObject *m, *d;
-
   Py_TYPE(&_librsync_SigMakerType) = &PyType_Type;
   Py_TYPE(&_librsync_DeltaMakerType) = &PyType_Type;
-  m = Py_InitModule("_librsync", _librsyncMethods);
+  m = PyModule_Create(&rsyncDef);
   d = PyModule_GetDict(m);
   librsyncError = PyErr_NewException("_librsync.librsyncError", NULL, NULL);
   PyDict_SetItemString(d, "librsyncError", librsyncError);
@@ -480,4 +471,5 @@ void init_librsync(void)
 					   Py_BuildValue("l", (long)RS_JOB_BLOCKSIZE));
   PyDict_SetItemString(d, "RS_DEFAULT_BLOCK_LEN",
 					   Py_BuildValue("l", (long)RS_DEFAULT_BLOCK_LEN));
+  return m;
 }

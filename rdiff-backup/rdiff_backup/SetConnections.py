@@ -28,8 +28,8 @@ the related connections.
 from __future__ import absolute_import
 from __future__ import print_function
 import os, sys
-from .log import Log
-from . import Globals, connection, rpath
+from rdiff_backup.log import Log
+from rdiff_backup import Globals, connection, rpath
 from six.moves import map
 from six.moves import range
 

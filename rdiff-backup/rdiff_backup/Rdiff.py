@@ -21,7 +21,7 @@
 
 from __future__ import absolute_import
 import os, librsync
-from . import Globals, log, static, TempFile, rpath, hash
+from rdiff_backup import Globals, log, static, TempFile, rpath, hash
 
 
 def get_signature(rp, blocksize = None):

@@ -419,14 +419,14 @@ static PyMethodDef CMethods[] = {
   {NULL, NULL, 0, NULL}
 };
 
-static struct PyModuleDef cdef = {
+static struct PyModuleDef cDef = {
     PyModuleDef_HEAD_INIT, "C", "C methods", -1, CMethods, NULL, NULL, NULL, NULL
 };
 
 PyMODINIT_FUNC PyInit_C(void)
 {
   PyObject *m, *d;
-  m = PyModule_Create(&cdef);
+  m = PyModule_Create(&cDef);
   d = PyModule_GetDict(m);
   UnknownFileTypeError = PyErr_NewException("C.UnknownFileTypeError", NULL, NULL);
   PyDict_SetItemString(d, "UnknownFileTypeError", UnknownFileTypeError);
