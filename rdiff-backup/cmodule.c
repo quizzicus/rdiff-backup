@@ -31,7 +31,7 @@
 
 
 /* Some of the following code to define major/minor taken from code by
- * Jörg Schilling's star archiver.
+ * Jï¿½rg Schilling's star archiver.
  */
 #if !defined(major) && (defined(sgi) || defined(__sgi) || defined(__SVR4)) && !defined(__CYGWIN32__)
 #include <sys/mkdev.h>
@@ -58,6 +58,9 @@
 #endif
 #ifndef PY_LONG_LONG 
     #define PY_LONG_LONG LONG_LONG 
+#endif
+#ifndef PyInt_FromLong
+    #define PyInt_FromLong PyLong_FromLong
 #endif
 
 /* The following section is by Jeffrey A. Marshall and compensates for
@@ -430,11 +433,15 @@ static PyMethodDef CMethods[] = {
   {NULL, NULL, 0, NULL}
 };
 
-void initC(void)
+static struct PyModuleDef cdef = {
+    PyModuleDef_HEAD_INIT, "C", "", -1, CMethods, NULL, NULL, NULL, NULL
+};
+
+void PyInit_C(void)
 {
   PyObject *m, *d;
 
-  m = Py_InitModule("C", CMethods);
+  m = PyModule_Create(&cdef);
   d = PyModule_GetDict(m);
   UnknownFileTypeError = PyErr_NewException("C.UnknownFileTypeError",
 											NULL, NULL);
