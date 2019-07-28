@@ -30,10 +30,11 @@ files), where files is the number of files attached (usually 1 or
 
 from __future__ import generators
 from __future__ import absolute_import
-import os, tempfile, UserList, types
-from . import Globals, rpath, iterfile, log
+import os, tempfile, types
+from rdiff_backup import Globals, rpath, iterfile, log
 from six.moves import map
 from six.moves import range
+from collections import UserList
 
 
 def CollateIterators(*rorp_iters):
@@ -118,7 +119,7 @@ def Collate2Iters(riter1, riter2):
 			relem2 = None
 
 
-class IndexedTuple(UserList.UserList):
+class IndexedTuple(UserList):
 	"""Like a tuple, but has .index
 
 	This is used by CollateIterator above, and can be passed to the

@@ -29,7 +29,7 @@ FSAbilities object describing it.
 
 from __future__ import absolute_import
 import errno, os
-from . import Globals, log, TempFile, selection, robust, SetConnections, \
+from rdiff_backup import Globals, log, TempFile, selection, robust, SetConnections, \
 	   static, FilenameMapping, win_acls, Time
 import six
 

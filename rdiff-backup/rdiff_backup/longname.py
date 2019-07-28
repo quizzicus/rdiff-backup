@@ -40,7 +40,7 @@ it later.
 
 from __future__ import absolute_import
 import types, errno
-from . import log, Globals, restore, rpath, FilenameMapping, regress
+from rdiff_backup import log, Globals, restore, rpath, FilenameMapping, regress
 
 long_name_dir = "long_filename_data"
 rootrp = None

@@ -27,7 +27,7 @@ compare.  This uses elements of the backup and restore modules.
 from __future__ import generators
 from __future__ import absolute_import
 from __future__ import print_function
-from . import Globals, restore, rorpiter, log, backup, static, rpath, hash, robust
+from rdiff_backup import Globals, restore, rorpiter, log, backup, static, rpath, hash, robust
 
 def Compare(src_rp, mirror_rp, inc_rp, compare_time):
 	"""Compares metadata in src_rp dir with metadata in mirror_rp at time"""

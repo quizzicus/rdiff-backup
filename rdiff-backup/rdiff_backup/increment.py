@@ -20,7 +20,7 @@
 """Provides functions and *ITR classes, for writing increment files"""
 
 from __future__ import absolute_import
-from . import Globals, Time, rpath, Rdiff, log, statistics, robust
+from rdiff_backup import Globals, Time, rpath, Rdiff, log, statistics, robust
 
 
 def Increment(new, mirror, incpref):

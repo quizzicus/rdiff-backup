@@ -57,7 +57,7 @@ field names and values.
 from __future__ import generators
 from __future__ import absolute_import
 import re, gzip, os, binascii, codecs
-from . import log, Globals, rpath, Time, robust, increment, static, rorpiter
+from rdiff_backup import log, Globals, rpath, Time, robust, increment, static, rorpiter
 from six.moves import range
 
 class ParsingError(Exception):
@@ -693,4 +693,4 @@ def SetManager():
 	return ManagerObj
 
 
-from . import eas_acls, win_acls # put at bottom to avoid python circularity bug
+from rdiff_backup import eas_acls, win_acls # put at bottom to avoid python circularity bug

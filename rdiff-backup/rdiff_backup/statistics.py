@@ -21,7 +21,7 @@
 
 from __future__ import absolute_import
 import re, os, time
-from . import Globals, Time, increment, log, static, metadata, rpath
+from rdiff_backup import Globals, Time, increment, log, static, metadata, rpath
 from six.moves import map
 from six.moves import zip
 from functools import reduce

@@ -35,7 +35,7 @@ def MakeStatic(cls):
 	"""
 	for name in cls.__dict__:
 		if name[0] != "_":
-			cls.__dict__[name] = staticmethod(cls.__dict__[name])
+			setattr(cls, name, staticmethod(cls.__dict__[name]))
 
 def MakeClass(cls):
 	"""Turn instance methods into classmethods.  Ignore _ like above"""

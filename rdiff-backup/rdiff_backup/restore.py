@@ -21,8 +21,8 @@
 
 from __future__ import generators
 from __future__ import absolute_import
-import tempfile, os, cStringIO
-from . import static, rorpiter, FilenameMapping
+import tempfile, os, io
+from rdiff_backup import static, rorpiter, FilenameMapping
 from six.moves import range
 
 class RestoreError(Exception): pass
@@ -352,7 +352,7 @@ class CachedRF:
 			log.Log("Error: Unable to retrieve data for file %s!\nThe "
 					"cause is probably data loss from the backup repository."
 					% (index and "/".join(index) or '.',), 2)
-			return cStringIO.StringIO('')
+			return io.BytesIO('')
 		return rf.get_restore_fp()
 
 	def add_rfs(self, index, mir_rorp = None):
@@ -475,7 +475,7 @@ class RestoreFile:
 		def error_handler(exc):
 			log.Log("Error reading %s, substituting empty file." %
 					(self.mirror_rp.path,), 2)
-			return cStringIO.StringIO('')
+			return io.BytesIO('')
 
 		if not self.relevant_incs[-1].isreg():
 			log.Log("""Warning: Could not restore file %s!
@@ -486,7 +486,7 @@ constructed from existing increments because last increment had type
 created.  This error is probably caused by data loss in the
 rdiff-backup destination directory, or a bug in rdiff-backup""" %
 	    (self.mirror_rp.get_indexpath(), self.relevant_incs[-1].lstat()), 2)
-			return cStringIO.StringIO('')
+			return io.BytesIO('')
 		return robust.check_common_error(error_handler, get_fp)
 
 	def get_first_fp(self):
@@ -740,6 +740,6 @@ class PermissionChanger:
 		for index, rp, perms in self.open_index_list: rp.chmod(perms)
 
 
-from . import Globals, Time, Rdiff, Hardlink, selection, rpath, \
+from rdiff_backup import Globals, Time, Rdiff, Hardlink, selection, rpath, \
 	   log, robust, metadata, statistics, TempFile, hash, longname
 

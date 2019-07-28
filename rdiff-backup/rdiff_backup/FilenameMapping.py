@@ -31,8 +31,8 @@ handle that error.)
 
 from __future__ import generators
 from __future__ import absolute_import
-import os, re, types
-from . import Globals, log, rpath
+import os, re
+from rdiff_backup import Globals, log, rpath
 from six.moves import map
 import six
 

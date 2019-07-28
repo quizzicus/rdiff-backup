@@ -433,4 +433,4 @@ class ErrorFile:
 	def close(self): return None
 
 
-from . import iterfile
+from rdiff_backup import iterfile

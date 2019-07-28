@@ -543,7 +543,7 @@ import Globals, Time, Rdiff, Hardlink, FilenameMapping, C, Security, \
 	   TempFile, SetConnections, librsync, log, regress, fs_abilities, \
 	   eas_acls, user_group, compare
 
-try: from . import win_acls
+try: from rdiff_backup import win_acls
 except ImportError: pass
 
 Globals.local_connection = LocalConnection()

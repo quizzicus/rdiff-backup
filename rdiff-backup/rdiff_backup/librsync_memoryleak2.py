@@ -4,7 +4,7 @@
 
 from __future__ import absolute_import
 import os, _librsync
-from .librsync import *
+from rdiff_backup.librsync import *
 from six.moves import range
 
 os.chdir("/tmp")

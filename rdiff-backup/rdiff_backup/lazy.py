@@ -23,7 +23,7 @@ from __future__ import generators
 from __future__ import absolute_import
 from __future__ import print_function
 import os, stat, types
-from . import static
+from rdiff_backup import static
 from six.moves import map
 from six.moves import range
 

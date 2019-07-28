@@ -20,8 +20,8 @@
 """Catch various exceptions given system call"""
 
 from __future__ import absolute_import
-import errno, signal, exceptions, zlib
-import librsync, C, static, rpath, Globals, log, statistics, connection
+import errno, signal, zlib
+import librsync, C, static, rpath, Globals, log, connection
 
 def check_common_error(error_handler, function, args = []):
 	"""Apply function to args, if error, run error_handler on exception

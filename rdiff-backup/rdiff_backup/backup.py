@@ -22,7 +22,7 @@
 from __future__ import generators
 from __future__ import absolute_import
 import errno
-from . import Globals, metadata, rorpiter, TempFile, Hardlink, robust, increment, \
+from rdiff_backup import Globals, metadata, rorpiter, TempFile, Hardlink, robust, increment, \
 	   rpath, static, log, selection, Time, Rdiff, statistics, iterfile, \
 	   hash, longname
 

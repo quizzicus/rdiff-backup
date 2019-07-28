@@ -22,11 +22,9 @@
 # Until rdiff-backup is ported to Python 3 (or abandons support for versions
 # below Python 2.5), we'll ignore the warning about the deprecated sha module
 from __future__ import absolute_import
-import warnings
-warnings.filterwarnings("ignore", ".*sha module.*", DeprecationWarning)
 
-import sha
-from . import Globals
+import hashlib
+from rdiff_backup import Globals
 
 class FileWrapper:
 	"""Wrapper around a file-like object
@@ -40,7 +38,7 @@ class FileWrapper:
 	"""
 	def __init__(self, fileobj):
 		self.fileobj = fileobj
-		self.sha1 = sha.new()
+		self.sha1 = hashlib.sha1()
 		self.closed = 0
 
 	def read(self, length = -1):

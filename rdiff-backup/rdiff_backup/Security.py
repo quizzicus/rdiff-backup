@@ -21,7 +21,7 @@
 
 from __future__ import absolute_import
 import sys, tempfile, types
-from . import Globals, Main, rpath, log
+from rdiff_backup import Globals, Main, rpath, log
 
 class Violation(Exception):
 	"""Exception that indicates an improper request has been received"""

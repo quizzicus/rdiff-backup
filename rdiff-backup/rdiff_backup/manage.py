@@ -21,8 +21,8 @@
 
 from __future__ import generators
 from __future__ import absolute_import
-from .log import Log
-from . import Globals, Time, static, statistics, restore, selection, FilenameMapping
+from rdiff_backup.log import Log
+from rdiff_backup import Globals, Time, static, statistics, restore, selection, FilenameMapping
 
 
 class ManageException(Exception): pass
