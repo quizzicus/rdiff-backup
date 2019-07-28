@@ -331,8 +331,7 @@ typedef struct {
 } _librsync_PatchMakerObject;
 
 /* Call with the basis file */
-static PyObject*
-_librsync_new_patchmaker(PyObject* self, PyObject* args)
+static PyObject* _librsync_new_patchmaker(PyObject* self, PyObject* args)
 {
   _librsync_PatchMakerObject* pm;
   PyObject *python_file;
@@ -340,10 +339,11 @@ _librsync_new_patchmaker(PyObject* self, PyObject* args)
 
   if (!PyArg_ParseTuple(args, "O:new_patchmaker", &python_file))
 	return NULL;
+	/*I'll deal with this later, if necessary
   if (!PyFile_Check(python_file)) {
 	PyErr_SetString(PyExc_TypeError, "Need true file object");
 	return NULL;
-  }
+  }*/
   Py_INCREF(python_file);
 
   pm = PyObject_New(_librsync_PatchMakerObject, &_librsync_PatchMakerType);
