@@ -26,7 +26,7 @@ which is written in C.  The goal was to use C as little as possible...
 
 from __future__ import absolute_import
 import types, array
-import _librsync
+from . import _librsync
 
 blocksize = _librsync.RS_JOB_BLOCKSIZE
 

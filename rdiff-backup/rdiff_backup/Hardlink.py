@@ -32,7 +32,8 @@ source side should only transmit inode information.
 
 from __future__ import generators
 from __future__ import absolute_import
-import Globals, Time, log, robust, errno
+from . import Globals, Time, log, robust
+import errno
 
 # The keys in this dictionary are (inode, devloc) pairs.  The values
 # are a pair (index, remaining_links, dest_key, sha1sum) where index

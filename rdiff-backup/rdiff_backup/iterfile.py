@@ -21,7 +21,7 @@
 
 from __future__ import absolute_import
 import six.moves.cPickle, array, types
-import Globals, C, robust, log, rpath
+from . import Globals, C, robust, log, rpath
 from six.moves import range
 
 

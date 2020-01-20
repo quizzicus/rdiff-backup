@@ -36,7 +36,7 @@ be recovered.
 from __future__ import generators
 from __future__ import absolute_import
 import signal, errno, re, os
-import Globals, restore, log, rorpiter, TempFile, metadata, rpath, C, \
+from . import Globals, restore, log, rorpiter, TempFile, metadata, rpath, C, \
 	   Time, backup, robust, longname
 
 # regress_time should be set to the time we want to regress back to

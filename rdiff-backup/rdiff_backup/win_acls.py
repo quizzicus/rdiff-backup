@@ -19,8 +19,8 @@
 
 from __future__ import generators
 from __future__ import absolute_import
-import C, metadata, re, rorpiter, rpath, log
-import six
+from . import C, metadata, rorpiter, rpath, log
+import six, re
 
 try:
 	from win32security import *

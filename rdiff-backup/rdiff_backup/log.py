@@ -21,8 +21,8 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
-import time, sys, traceback, types, rpath
-import Globals, static, re
+import time, sys, traceback, types, re
+from . import Globals, static, rpath
 import six
 
 

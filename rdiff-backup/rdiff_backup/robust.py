@@ -21,7 +21,7 @@
 
 from __future__ import absolute_import
 import errno, signal, zlib
-import librsync, C, static, rpath, Globals, log, connection
+from . import librsync, C, static, rpath, Globals, log, connection
 
 def check_common_error(error_handler, function, args = []):
 	"""Apply function to args, if error, run error_handler on exception
@@ -70,7 +70,7 @@ def is_routine_fatal(exc):
 	an exit message.
 
 	"""
-	if isinstance(exc, exceptions.KeyboardInterrupt):
+	if isinstance(exc, KeyboardInterrupt):
 		return "User abort"
 	elif isinstance(exc, connection.ConnectionError):
 		return "Lost connection to the remote system"

@@ -37,7 +37,7 @@ are dealing with are local or remote.
 
 from __future__ import absolute_import
 import os, stat, re, sys, shutil, gzip, socket, time, errno, codecs
-import Globals, Time, static, log, user_group, C
+from . import Globals, Time, static, log, user_group, C
 import six
 
 try:
